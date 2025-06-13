@@ -1,61 +1,52 @@
-import { parse } from 'node-html-parser'
-
 export default {
   async fetch(request) {
-    const { pathname, searchParams } = new URL(request.url)
+    const { pathname, searchParams } = new URL(request.url);
 
     if (pathname === '/search') {
-      const query = searchParams.get('query')
-      if (!query) return json({ error: 'Missing query' }, 400)
+      const query = searchParams.get('query');
+      if (!query) return json({ error: 'Missing query' }, 400);
 
-      const res = await fetch(`https://netnaija.xyz/?s=${encodeURIComponent(query)}`)
-      const html = await res.text()
-      const root = parse(html)
+      const res = await fetch(`https://netnaija.xyz/?s=${encodeURIComponent(query)}`);
+      const html = await res.text();
 
-      const results = root.querySelectorAll('article').map(article => {
-        const title = article.querySelector('h2 a')?.text.trim()
-        const url = article.querySelector('h2 a')?.getAttribute('href')
-        const thumb = article.querySelector('img')?.getAttribute('src')
-        return { title, url, thumb }
-      }).slice(0, 6)
+      const results = [...html.matchAll(/<article.*?<a\s+href="([^"]+)"[^>]*>(.*?)<\/a>[\s\S]*?<img[^>]+src="([^"]+)"/g)]
+        .map(match => ({
+          url: match[1],
+          title: stripHTML(match[2]),
+          thumb: match[3],
+        }))
+        .slice(0, 6);
 
-      return json(results)
+      return json(results);
     }
 
     if (pathname === '/download') {
-      const movieUrl = searchParams.get('url')
-      if (!movieUrl) return json({ error: 'Missing URL' }, 400)
+      const url = searchParams.get('url');
+      if (!url) return json({ error: 'Missing URL' }, 400);
 
-      const res = await fetch(movieUrl)
-      const html = await res.text()
-      const root = parse(html)
+      const res = await fetch(url);
+      const html = await res.text();
 
-      const links = root.querySelectorAll('a')
-      const validExtensions = ['.mkv', '.mp4', '.lol', '.avi', '.mov']
+      const links = [...html.matchAll(/<a[^>]+href="([^"]+\.(mkv|mp4|lol|avi|mov)[^"]*)".*?>(.*?)<\/a>/gi)]
+        .map(match => ({
+          url: match[1],
+          text: stripHTML(match[3] || match[1])
+        }));
 
-      const fileLinks = links
-        .map(link => {
-          const href = link.getAttribute('href')
-          if (href && validExtensions.some(ext => href.toLowerCase().includes(ext))) {
-            return {
-              text: link.text.trim() || href,
-              url: href
-            }
-          }
-          return null
-        })
-        .filter(Boolean)
-
-      return json(fileLinks)
+      return json(links);
     }
 
-    return json({ error: 'Not Found' }, 404)
+    return json({ error: 'Not found' }, 404);
   }
-}
+};
 
 function json(data, status = 200) {
   return new Response(JSON.stringify(data), {
     status,
     headers: { 'Content-Type': 'application/json' }
-  })
+  });
+}
+
+function stripHTML(html) {
+  return html.replace(/<[^>]*>/g, '').trim();
 }
