@@ -1,9 +1,3 @@
 name = "netnaija-scraper-api"
 main = "worker.js"
 compatibility_date = "2025-06-13"
-
-[build]
-command = ""
-
-[env.production]
-name = "netnaija-scraper-api-prod"
